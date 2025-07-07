@@ -1,0 +1,113 @@
+#Randomly selecting images for Test set.
+
+import random
+rn = random.sample(range(1, 141), 30)
+print("Randomly selected numbers for Controlled cell test set:")
+print(rn)
+
+
+
+rn = random.sample(range(1, 90), 20)
+print("Randomly selected numbers for Ablation test set:")
+print(rn)
+
+
+#Class Weight Initialised
+
+
+from sklearn.utils import class_weight
+import numpy as np
+train_labels = [0]*114 + [1]*70
+weights = class_weight.compute_class_weight(
+    class_weight='balanced',
+    classes=np.unique(train_labels),
+    y=train_labels
+)
+class_weights = dict(enumerate(weights))
+print(class_weights)
+
+
+#Importing Data Set having Test set & training Set.
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+#Image Augmentaion
+
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+
+train_datagen = ImageDataGenerator(rescale = 1./255,
+                                   shear_range = 0.2,
+                                   zoom_range = 0.2,
+                                   horizontal_flip = True)
+training_set = train_datagen.flow_from_directory('/content/drive/My Drive/DS/Training Set',
+                                                 target_size = (64, 64),
+                                                 batch_size = 8,
+                                                 class_mode = 'binary'
+                                                  )
+
+
+
+
+test_datagen = ImageDataGenerator(rescale = 1./255)
+test_set = test_datagen.flow_from_directory('/content/drive/My Drive/DS/Test Set',
+                                            target_size = (64, 64),
+                                            batch_size = 8,
+                                            class_mode = 'binary',
+                                            shuffle=False)
+
+#CNN Intializes and Executed
+
+cnn = tf.keras.models.Sequential()
+cnn.add(tf.keras.layers.Conv2D(filters=32, kernel_size=3, activation='relu', input_shape=[64, 64, 3]))
+cnn.add(tf.keras.layers.MaxPool2D(pool_size=2, strides=2))
+cnn.add(tf.keras.layers.Conv2D(filters=32, kernel_size=3, activation='relu'))
+cnn.add(tf.keras.layers.MaxPool2D(pool_size=2, strides=2))
+cnn.add(tf.keras.layers.Flatten())
+cnn.add(tf.keras.layers.Dense(units=128, activation='relu'))
+cnn.add(tf.keras.layers.Dense(units=1, activation='sigmoid'))
+cnn.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+
+
+
+#Training CNN on both Training set and Test set
+cnn.fit(x = training_set, validation_data = test_set, epochs = 33)
+
+
+#confusion Matrix
+
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score
+
+y_test = test_set.classes
+
+y_pred_probabilities = cnn.predict(test_set, verbose=0)
+y_pred = (y_pred_probabilities > 0.5).astype(int).reshape(-1)
+
+cm = confusion_matrix(y_test, y_pred)
+
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=test_set.class_indices.keys())
+disp.plot(cmap=plt.cm.Blues)
+plt.title("Confusion Matrix")
+plt.show()
+
+print(f"Confusion Matrix Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+
+
+
+#precision score, Recall score & F1 score
+
+from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
+
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+
+print(f"Precision: {precision:.2f}")
+print(f"Recall:    {recall:.2f}")
+print(f"F1 Score:  {f1:.2f}")
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred, target_names=test_set.class_indices.keys()))
+
